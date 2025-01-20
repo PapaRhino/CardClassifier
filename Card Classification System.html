@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pokémon Card Classifier</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .hidden {
+            display: none;
+        }
+        select, input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f5e9;
+            border-radius: 5px;
+        }
+        .carousel {
+            display: flex;
+            overflow-x: auto;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .carousel img {
+            width: 100px;
+            height: auto;
+            cursor: pointer;
+            border: 2px solid transparent;
+            border-radius: 5px;
+        }
+        .carousel img.selected {
+            border-color: #4CAF50;
+        }
+        .error {
+            color: #d32f2f;
+            padding: 10px;
+            margin: 10px 0;
+            background: #ffebee;
+            border-radius: 4px;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pokémon Card Classifier</h1>
+
+        <div class="section">
+            <h2>Search Card</h2>
+            <input type="text" id="cardSearch" placeholder="Enter card name (e.g., 'Charizard')">
+            <button onclick="searchCard()">Search</button>
+        </div>
+
+        <div id="cardResults" class="section hidden">
+            <h2>Search Results</h2>
+            <div class="carousel" id="carousel"></div>
+        </div>
+
+        <div id="cardPreview" class="section hidden">
+            <h2>Card Details</h2>
+            <div id="cardDetails"></div>
+        </div>
+
+        <div id="manualEntry" class="section hidden">
+            <h2>Manual Entry</h2>
+            <p class="info">This appears to be a trainer card or special card. Please enter the following:</p>
+            <input type="number" id="manualPokedex" placeholder="Pokédex Number (9999 for trainer cards)" min="1" max="9999">
+        </div>
+
+        <div id="typeSection" class="section hidden">
+            <h2>TCG Type</h2>
+            <select id="type">
+                <option value="">Select Type</option>
+                <option value="100">Fire</option>
+                <option value="200">Water</option>
+                <option value="300">Grass</option>
+                <option value="400">Psychic</option>
+                <option value="500">Lightning</option>
+                <option value="600">Metal</option>
+                <option value="700">Darkness</option>
+                <option value="800">Fairy</option>
+                <option value="900">Dragon</option>
+                <option value="010">Fighting</option>
+                <option value="020">Colorless</option>
+            </select>
+        </div>
+
+        <button onclick="calculateClassification()" id="calculateBtn" class="hidden">Calculate Classification</button>
+        <button onclick="startOver()">Start Over</button>
+
+        <div id="result" class="result hidden">
+            <h2>Classification Results</h2>
+            <p><strong>Classification Code: </strong><span id="classificationCode"></span></p>
+            <p><strong>Power Level: </strong><span id="powerLevel"></span></p>
+            <div id="powerLevelDetails"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentCard = null;
+        let pokedexNumber = null;
+
+        async function searchCard() {
+            const cardName = document.getElementById('cardSearch').value;
+            if (!cardName) return;
+
+            const carousel = document.getElementById('carousel');
+            carousel.innerHTML = '<p class="loading">Searching...</p>';
+            document.getElementById('cardResults').classList.remove('hidden');
+
+            try {
+                const response = await fetch(`https://api.pokemontcg.io/v2/cards?q=name:"${cardName}"`);
+                const data = await response.json();
+
+                if (data.data && data.data.length > 0) {
+                    carousel.innerHTML = '';
+                    data.data.forEach(card => {
+                        const img = document.createElement('img');
+                        img.src = card.images.small;
+                        img.alt = card.name;
+                        img.onclick = () => selectCard(card);
+                        carousel.appendChild(img);
+                    });
+                } else {
+                    carousel.innerHTML = '<p class="error">No cards found. Please try a different name.</p>';
+                }
+            } catch (error) {
+                carousel.innerHTML = '<p class="error">Error fetching cards. Please try again later.</p>';
+            }
+        }
+
+        function selectCard(card) {
+            currentCard = card;
+            document.querySelectorAll('.carousel img').forEach(img => img.classList.remove('selected'));
+
+            const selectedImg = Array.from(document.querySelectorAll('.carousel img'))
+                .find(img => img.src === card.images.small);
+            selectedImg.classList.add('selected');
+
+            displayCardDetails(card);
+        }
+
+        function displayCardDetails(card) {
+            const details = document.getElementById('cardDetails');
+            let html = `
+                <h3>${card.name}</h3>
+                <p>Type: ${card.types ? card.types.join(', ') : 'Unknown'}</p>
+                <p>Supertype: ${card.supertype}</p>
+                <p>Set: ${card.set.name}</p>
+                <img src="${card.images.large}" alt="${card.name}" style="width: 200px;">
+            `;
+            details.innerHTML = html;
+            document.getElementById('cardPreview').classList.remove('hidden');
+            document.getElementById('typeSection').classList.remove('hidden');
+            document.getElementById('calculateBtn').classList.remove('hidden');
+        }
+
+        function calculateClassification() {
+            if (!currentCard) return;
+
+            const type = document.getElementById('type').value;
+            const manualPokedexInput = document.getElementById('manualPokedex');
+            const finalPokedexNumber = pokedexNumber || (manualPokedexInput ? manualPokedexInput.value : '0000');
+
+            const cardType = determineCardType(currentCard);
+            const powerLevel = calculatePowerLevel(currentCard);
+
+            document.getElementById('result').classList.remove('hidden');
+            document.getElementById('classificationCode').textContent = 
+                `${cardType}.${powerLevel.tier}.${String(finalPokedexNumber).padStart(4, '0')}.${type}`;
+            document.getElementById('powerLevel').textContent = powerLevel.tier;
+            document.getElementById('powerLevelDetails').innerHTML = 
+                powerLevel.details.map(detail => `<p>${detail}</p>`).join('');
+        }
+
+        function calculatePowerLevel(card) {
+            if (!card || card.supertype !== "Pokémon") {
+                return { tier: "N/A", details: ["Not a Pokémon card"] };
+            }
+
+            let score = 0;
+            let details = [];
+
+            const hp = parseInt(card.hp) || 0;
+            let hpScore = 0;
+            if (hp >= 200) hpScore = 4;
+            else if (hp >= 120) hpScore = 3;
+            else if (hp >= 60) hpScore = 2;
+            else hpScore = -3;
+
+            score += hpScore;
+            details.push(`HP (${hp}): ${hpScore >= 0 ? '+' : ''}${hpScore}`);
+
+            if (card.abilities) {
+                card.abilities.forEach(ability => {
+                    const abilityText = ability.text.toLowerCase();
+                    let abilityScore = 0;
+                    let effectDetails = [];
+
+                    if (abilityText.includes("search your deck") && 
+                        abilityText.includes("bench")) {
+                        abilityScore += 8;
+                        effectDetails.push("Call for Family (+8)");
+                    }
+
+                    if (["paralyzed", "poisoned", "confused", "asleep", "burned"].some(status => abilityText.includes(status))) {
+                        abilityScore += 4;
+                        effectDetails.push("Status effect (+4)");
+                    }
+
+                    score += abilityScore;
+                    details.push(`Ability "${ability.name}": ${effectDetails.join(", ")}`);
+                });
+            }
+
+            if (card.attacks) {
+                card.attacks.forEach(attack => {
+                    const attackText = attack.text ? attack.text.toLowerCase() : '';
+                    let attackScore = 0;
+                    let effectDetails = [];
+
+                    if (attackText.includes("search your deck") && 
+                        attackText.includes("bench")) {
+                        attackScore += 8;
+                        effectDetails.push("Call for Family (+8)");
+                    }
+
+                    if (["paralyzed", "poisoned", "confused", "asleep", "burned"].some(status => attackText.includes(status))) {
+                        attackScore += 4;
+                        effectDetails.push("Status effect (+4)");
+                    }
+
+                    score += attackScore;
+                    details.push(`Attack "${attack.name}": ${effectDetails.join(", ")}`);
+                });
+            }
+
+            let tier = "D";
+            if (score >= 10) tier = "S";
+            else if (score >= 8) tier = "A";
+            else if (score >= 5) tier = "B";
+            else if (score >= 3) tier = "C";
+
+            return { tier, details };
+        }
+
+        function determineCardType(card) {
+            if (!card) return null;
+
+            if (card.supertype === "Pokémon") {
+                if (card.subtypes.some(st => 
+                    ['V', 'VMAX', 'VSTAR'].some(v => st.includes(v)))) return "110";
+                if (card.subtypes.includes("MEGA")) return "120";
+                if (card.subtypes.includes("GX")) return "130";
+                if (card.subtypes.includes("EX")) return "140";
+                if (card.subtypes.includes("LV.X")) return "150";
+                if (card.subtypes.includes("BREAK")) return "160";
+                if (card.subtypes.includes("Prime")) return "170";
+
+                if (card.subtypes.includes("Stage 2")) return "230";
+                if (card.subtypes.includes("Stage 1")) return "220";
+                return "210"; 
+            }
+
+            if (card.supertype === "Trainer") {
+                if (card.subtypes.includes("Item")) return "310";
+                if (card.subtypes.includes("Tool")) return "320";
+                if (card.subtypes.includes("Supporter")) return "330";
+                if (card.subtypes.includes("Stadium")) return "340";
+            }
+
+            if (card.supertype === "Energy") {
+                return card.subtypes.includes("Basic") ? "410" : "420";
+            }
+
+            return null;
+        }
+
+        function startOver() {
+            document.getElementById('cardSearch').value = '';
+            document.getElementById('type').value = '';
+            document.getElementById('cardPreview').classList.add('hidden');
+            document.getElementById('manualEntry').classList.add('hidden');
+            document.getElementById('typeSection').classList.add('hidden');
+            document.getElementById('calculateBtn').classList.add('hidden');
+            document.getElementById('result').classList.add('hidden');
+            currentCard = null;
+            pokedexNumber = null;
+        }
+    </script>
+</body>
+</html>
